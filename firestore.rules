@@ -1,0 +1,276 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidStringList(list, maxLen) {
+      return list is list &&
+             list.size() <= maxLen &&
+             (list.size() == 0 || list[0] is string);
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidUserProfile(data, userId) {
+      return data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             data.preferredLanguage in ['en', 'am'] &&
+             isValidStringList(data.followedCategories, 14) &&
+             isValidStringList(data.interests, 20) &&
+             data.notificationsEnabled is bool &&
+             data.breakingAlertsEnabled is bool &&
+             data.aiDigestEnabled is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidBookmarkItem(data, userId) {
+      return data.userId == userId &&
+             data.itemId is string && data.itemId.size() >= 1 && data.itemId.size() <= 128 &&
+             data.itemType in ['article', 'application', 'ai_tool'] &&
+             data.readingListName is string && data.readingListName.size() >= 1 && data.readingListName.size() <= 60 &&
+             data.titleEn is string && data.titleEn.size() >= 1 && data.titleEn.size() <= 200 &&
+             data.titleAm is string && data.titleAm.size() >= 1 && data.titleAm.size() <= 200 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             data.coverKey is string && data.coverKey.size() >= 1 && data.coverKey.size() <= 60 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidReadingHistoryItem(data, userId) {
+      return data.userId == userId &&
+             data.articleId is string && data.articleId.size() >= 1 && data.articleId.size() <= 128 &&
+             data.titleEn is string && data.titleEn.size() >= 1 && data.titleEn.size() <= 200 &&
+             data.titleAm is string && data.titleAm.size() >= 1 && data.titleAm.size() <= 200 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidArticleLike(data, userId) {
+      return data.userId == userId &&
+             data.articleId is string && data.articleId.size() >= 1 && data.articleId.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidEditorialSubmission(data, userId) {
+      return data.userId == userId &&
+             data.titleEn is string && data.titleEn.size() >= 3 && data.titleEn.size() <= 180 &&
+             data.titleAm is string && data.titleAm.size() <= 180 &&
+             data.summaryEn is string && data.summaryEn.size() <= 400 &&
+             data.summaryAm is string && data.summaryAm.size() <= 400 &&
+             data.contentEn is string && data.contentEn.size() >= 10 && data.contentEn.size() <= 20000 &&
+             data.contentAm is string && data.contentAm.size() <= 20000 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             isValidStringList(data.tags, 10) &&
+             data.coverKey is string && data.coverKey.size() >= 1 && data.coverKey.size() <= 60 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+             data.readingMinutes is int && data.readingMinutes >= 1 && data.readingMinutes <= 60 &&
+             data.status in ['draft', 'review', 'published', 'archived'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidContentReport(data, userId) {
+      return data.userId == userId &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.targetType in ['article', 'application', 'ai_tool'] &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 120 &&
+             data.details is string && data.details.size() <= 1000 &&
+             data.status == 'submitted' &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    // --- USER PROFILE & SUBCOLLECTIONS ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'preferredLanguage', 'followedCategories',
+                         'interests', 'notificationsEnabled', 'breakingAlertsEnabled',
+                         'aiDigestEnabled', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'email', 'photoUrl', 'preferredLanguage',
+                         'followedCategories', 'interests', 'notificationsEnabled',
+                         'breakingAlertsEnabled', 'aiDigestEnabled', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'photoUrl', 'preferredLanguage',
+                         'followedCategories', 'interests', 'notificationsEnabled',
+                         'breakingAlertsEnabled', 'aiDigestEnabled', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Bookmarks & reading lists
+      match /bookmarks/{bookmarkId} {
+        allow get: if isOwner(userId) && isValidId(bookmarkId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(bookmarkId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'itemId', 'itemType', 'readingListName',
+                           'titleEn', 'titleAm', 'category', 'coverKey', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'itemId', 'itemType', 'readingListName',
+                           'titleEn', 'titleAm', 'category', 'coverKey', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidBookmarkItem(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(bookmarkId) &&
+                         isValidBookmarkItem(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'readingListName', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(bookmarkId);
+      }
+
+      // Reading history
+      match /reading_history/{historyId} {
+        allow get: if isOwner(userId) && isValidId(historyId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(historyId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'articleId', 'titleEn', 'titleAm',
+                           'category', 'progressPercent', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'articleId', 'titleEn', 'titleAm',
+                           'category', 'progressPercent', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidReadingHistoryItem(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(historyId) &&
+                         isValidReadingHistoryItem(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().articleId == existing().articleId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'titleEn', 'titleAm', 'category', 'progressPercent', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(historyId);
+      }
+
+      // Article likes
+      match /likes/{likeId} {
+        allow get: if isOwner(userId) && isValidId(likeId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(likeId) &&
+                         incoming().keys().hasAll(['userId', 'articleId', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'articleId', 'createdAt']) &&
+                         isValidArticleLike(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(likeId);
+      }
+
+      // Bilingual editorial submissions (Draft -> Review -> Published -> Archived)
+      match /submissions/{submissionId} {
+        allow get: if isOwner(userId) && isValidId(submissionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(submissionId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'titleEn', 'titleAm', 'summaryEn', 'summaryAm',
+                           'contentEn', 'contentAm', 'category', 'tags', 'coverKey',
+                           'authorName', 'readingMinutes', 'status', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'titleEn', 'titleAm', 'summaryEn', 'summaryAm',
+                           'contentEn', 'contentAm', 'category', 'tags', 'coverKey',
+                           'authorName', 'readingMinutes', 'status', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidEditorialSubmission(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(submissionId) &&
+                         isValidEditorialSubmission(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         existing().status != 'archived' &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'titleEn', 'titleAm', 'summaryEn', 'summaryAm',
+                           'contentEn', 'contentAm', 'category', 'tags', 'coverKey',
+                           'authorName', 'readingMinutes', 'status', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(submissionId);
+      }
+
+      // Content moderation reports
+      match /reports/{reportId} {
+        allow get: if isOwner(userId) && isValidId(reportId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(reportId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'targetId', 'targetType', 'reason', 'details', 'status', 'createdAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'targetId', 'targetType', 'reason', 'details', 'status', 'createdAt'
+                         ]) &&
+                         isValidContentReport(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(reportId);
+      }
+    }
+  }
+}

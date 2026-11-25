@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "AddisPress Admin",
+    "slug": "addispress-admin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.addispress.admin"
+    },
+    "ios": {
+      "bundleIdentifier": "com.addispress.admin"
+    }
+  }
+}

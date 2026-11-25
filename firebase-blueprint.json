@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile, language, followed categories, and notification settings.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "displayName": { "type": "string", "description": "User display name." },
+        "email": { "type": "string", "description": "User email address (owner-private)." },
+        "photoUrl": { "type": "string", "description": "Profile avatar URL." },
+        "preferredLanguage": { "type": "string", "enum": ["en", "am"], "description": "Preferred UI and content language." },
+        "followedCategories": { "type": "array", "description": "Subscribed editorial category IDs." },
+        "interests": { "type": "array", "description": "Topic interest tags." },
+        "notificationsEnabled": { "type": "boolean", "description": "Master push notification toggle." },
+        "breakingAlertsEnabled": { "type": "boolean", "description": "Breaking news notification preference." },
+        "aiDigestEnabled": { "type": "boolean", "description": "AI tools & guides digest preference." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "preferredLanguage",
+        "followedCategories",
+        "interests",
+        "notificationsEnabled",
+        "breakingAlertsEnabled",
+        "aiDigestEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BookmarkItem": {
+      "title": "BookmarkItem",
+      "description": "Saved article, application, or AI tool organized into reading lists.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemType": { "type": "string", "enum": ["article", "application", "ai_tool"] },
+        "readingListName": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleAm": { "type": "string" },
+        "category": { "type": "string" },
+        "coverKey": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "itemId",
+        "itemType",
+        "readingListName",
+        "titleEn",
+        "titleAm",
+        "category",
+        "coverKey",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ReadingHistoryItem": {
+      "title": "ReadingHistoryItem",
+      "description": "Tracks user article reading progress and history.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "articleId": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleAm": { "type": "string" },
+        "category": { "type": "string" },
+        "progressPercent": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "articleId",
+        "titleEn",
+        "titleAm",
+        "category",
+        "progressPercent",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ArticleLike": {
+      "title": "ArticleLike",
+      "description": "User like record for an article.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "articleId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "articleId", "createdAt"]
+    },
+    "EditorialSubmission": {
+      "title": "EditorialSubmission",
+      "description": "Bilingual user/editor story draft or published article.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "titleEn": { "type": "string" },
+        "titleAm": { "type": "string" },
+        "summaryEn": { "type": "string" },
+        "summaryAm": { "type": "string" },
+        "contentEn": { "type": "string" },
+        "contentAm": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "coverKey": { "type": "string" },
+        "authorName": { "type": "string" },
+        "readingMinutes": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "review", "published", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "titleEn",
+        "titleAm",
+        "summaryEn",
+        "summaryAm",
+        "contentEn",
+        "contentAm",
+        "category",
+        "tags",
+        "coverKey",
+        "authorName",
+        "readingMinutes",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ContentReport": {
+      "title": "ContentReport",
+      "description": "Moderation report submitted by a signed-in user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["article", "application", "ai_tool"] },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["submitted"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "targetId", "targetType", "reason", "details", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile, language preference, category subscriptions, and notification settings."
+    },
+    "/users/{userId}/bookmarks/{bookmarkId}": {
+      "schema": { "$ref": "#/entities/BookmarkItem" },
+      "description": "Saved articles, applications, and AI tools synced across devices."
+    },
+    "/users/{userId}/reading_history/{historyId}": {
+      "schema": { "$ref": "#/entities/ReadingHistoryItem" },
+      "description": "Per-user article reading progress and history."
+    },
+    "/users/{userId}/likes/{likeId}": {
+      "schema": { "$ref": "#/entities/ArticleLike" },
+      "description": "Per-user article likes."
+    },
+    "/users/{userId}/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/EditorialSubmission" },
+      "description": "Bilingual story drafts and published submissions authored by the user."
+    },
+    "/users/{userId}/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ContentReport" },
+      "description": "Per-user content reports."
+    }
+  }
+}

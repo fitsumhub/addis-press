@@ -1,0 +1,6 @@
+{
+  "name": "AddisPress",
+  "description": "Ethiopian digital media, technology news, AI guides, and Android app discovery platform with Amharic and English support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
